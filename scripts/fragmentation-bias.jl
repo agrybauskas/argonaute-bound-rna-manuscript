@@ -1,5 +1,7 @@
 #!/usr/bin/env julia
 
+# Version: v0.1.1
+
 using ArgParse
 using BioAlignments
 using BioSequences
@@ -12,38 +14,47 @@ arg_parser = ArgParseSettings()
 
 @add_arg_table arg_parser begin
     "--bam"
+        arg_type = String
+        default = ""
         help = "BAM alignment file."
     "--fastq"
+        arg_type = String
         default = ""
         help = "FASTQ.GZ file."
     "--ref"
+        arg_type = String
         help = "Reference sequence in FASTA format."
     "--rna"
-        help = "Use 'U' instead of 'T'."
         action = :store_true
+        help = "Use 'U' instead of 'T'."
     "--left-bp"
-        arg_type = Int
+        arg_type = Int64
         default = 25
         help = "Number base-pairs to the right of DNA cut."
     "--right-bp"
-        arg_type = Int
+        arg_type = Int64
         default = 25
         help = "Number base-pairs to the right of DNA cut."
     "--ignore-R1"
+        action = :store_true
         help = "Ignore R1 reads."
-        action = :store_true
     "--ignore-R2"
-        help = "Ignore R2 reads."
         action = :store_true
+        help = "Ignore R2 reads."
     "--output-format"
+        arg_type = String
         default = "csv"
         help = "Output format: CSV, transfac (for weblogo)."
 end
 
 parsed_args = parse_args(ARGS, arg_parser)
 
-function increment_nucl_count!(nucl_count, current_seq, left_bp, right_bp, total_nucl_counter)
-    for pos in [1:length(current_seq);]
+function increment_nucl_count!(nucl_count::Dict{String,Array{Int64,1}},
+                               current_seq::String,
+                               left_bp::Int64,
+                               right_bp::Int64,
+                               total_nucl_counter::Array{Int64,1})::Nothing
+    for pos::Int64 in [1:length(current_seq);]
         if pos > left_bp + right_bp
             break
         end
@@ -67,71 +78,71 @@ end
 
 function main()
     # Argument parsing.
-    options = Dict()
-    for (key,val) in parsed_args
+    options::Dict{String,Union{String,Int64,Bool}} = Dict()
+    for (key::String,val::Union{String,Float64,Int64,Bool}) in parsed_args
         options[key] = val
     end
 
-    bam = options["bam"]
-    fastq_gz = options["fastq"]
-    ref = options["ref"]
-    left_bp = options["left-bp"]
-    right_bp = options["right-bp"]
-    use_rna = options["rna"]
-    ignore_r1 = options["ignore-R1"]
-    ignore_r2 = options["ignore-R2"]
-    output_format = options["output-format"]
+    bam::String = options["bam"]
+    fastq_gz::String = options["fastq"]
+    ref::String = options["ref"]
+    left_bp::Int64 = options["left-bp"]
+    right_bp::Int64 = options["right-bp"]
+    use_rna::Bool = options["rna"]
+    ignore_r1::Bool = options["ignore-R1"]
+    ignore_r2::Bool = options["ignore-R2"]
+    output_format::String = options["output-format"]
 
-    nucl_count = Dict()
+    nucl_count::Dict{String,Array{Int64,1}} = Dict()
     nucl_count["A"] = zeros(left_bp + right_bp)
     nucl_count["C"] = zeros(left_bp + right_bp)
     nucl_count["G"] = zeros(left_bp + right_bp)
     nucl_count["T"] = zeros(left_bp + right_bp)
 
-    total_nucl_count  = zeros(left_bp + right_bp)
+    total_nucl_count::Array{Int64,1}  = zeros(left_bp + right_bp)
 
     if fastq_gz != ""
         # Reading fastq.gz.
-        reader = BioSequences.FASTQ.Reader(GzipDecompressorStream(open(fastq_gz)))
-        for record in reader
+        reader::BioSequences.FASTQ.Reader = BioSequences.FASTQ.Reader(GzipDecompressorStream(open(fastq_gz)))
+        for record::BioSequences.FASTQ.Record in reader
             increment_nucl_count!(nucl_count, uppercase(string(sequence(record))), 0, right_bp, total_nucl_count)
         end
         close(reader)
-    else
+    elseif bam != ""
         # Read reference sequences.
-        references = BioSequences.FASTA.Reader(Base.open(ref, "r"), index=index="$ref.fai")
+        references::BioSequences.FASTA.Reader = BioSequences.FASTA.Reader(Base.open(ref, "r"), index=index="$ref.fai")
 
-        references_seq = Dict()
-        references_length = Dict()
-
-        # Reading bam.
-        bam_reader = open(BAM.Reader, bam)
-
-        ref_nucl_count = Dict()
+        ref_nucl_count::Dict{String,Int64} = Dict()
         ref_nucl_count["A"] = 0
         ref_nucl_count["C"] = 0
         ref_nucl_count["G"] = 0
         ref_nucl_count["T"] = 0
 
-        total_ref_nucl_count  = 0
+        total_ref_nucl_count::Int64  = 0
 
-        for reference in references
-            for nucl in sort(collect(keys(nucl_count)))
+        for reference::BioSequences.FASTA.Record in references
+            for nucl::String in sort(collect(keys(nucl_count)))
                 # Calculates nucleotide frequency in reference sequences.
-                current_count = length(collect(eachmatch(Regex(nucl),
-                                                         string(BioSequences.FASTA.sequence(reference)))))
+                current_count::Int64 = length(collect(eachmatch(Regex(nucl),
+                                                                string(BioSequences.FASTA.sequence(reference)))))
                 ref_nucl_count[nucl] += current_count
                 total_ref_nucl_count += current_count
             end
         end
 
-        ref_nucl_freq = Dict()
-        for nucl in sort(collect(keys(nucl_count)))
+        ref_nucl_freq::Dict{String,Float64} = Dict()
+        for nucl::String in sort(collect(keys(nucl_count)))
             ref_nucl_freq[nucl] = ref_nucl_count[nucl] / total_ref_nucl_count
         end
 
-        bam_record = BAM.Record()
-        i = 1
+        references_seq::Dict{String,BioSequence{DNAAlphabet{4}}} = Dict()
+        references_length::Dict{String,Int64} = Dict()
+
+        # Reading bam.
+        bam_reader::BioAlignments.BAM.Reader{IOStream} = open(BAM.Reader, bam)
+
+        bam_record::BioAlignments.BAM.Record = BAM.Record()
+        i::Int64 = 1
 
         while !eof(bam_reader)
             read!(bam_reader, bam_record)
@@ -139,8 +150,8 @@ function main()
             if BAM.ismapped(bam_record)
                 # Determines how to modify nucleotide frequency from record position,
                 # direction and length.
-                left_pos = BAM.position(bam_record)
-                right_pos = BAM.rightposition(bam_record)
+                left_pos::Int64 = BAM.position(bam_record)
+                right_pos::Int64 = BAM.rightposition(bam_record)
 
                 # Flag positions:
                 # 1  - read paired
@@ -155,30 +166,31 @@ function main()
                 # 10 - read fails platform/vendor quality checks
                 # 11 - read is PCR or optical duplicate
                 # 12 - supplementary alignment
-                flags_binary = reverse(string(BAM.flag(bam_record), base=2, pad=12))
+                flags_binary::Array{Int64,1} = digits(BAM.flag(bam_record), base=2, pad=12)
 
                 # Retrieve sequence from the reference.
-                ref_name = BAM.refname(bam_record)
+                ref_name::String = BAM.refname(bam_record)
 
                 # Parse data that is related to references.
                 if ! haskey(references_seq, ref_name)
                    references_seq[ref_name] = sequence(references[ref_name])
-                   references_length[ref_name] = length(string(sequence(references[ref_name])))
+                   references_length[ref_name] = length(references_seq[ref_name])
                 end
 
                 # Positions near chromosome starts and ends are ignored.
-                if right_pos - right_bp + 1 < 0 ||
-                   left_pos - left_bp < 0 ||
+                if right_pos - right_bp + 1 <= 0 ||
+                   left_pos - left_bp <= 0 ||
                    right_pos + left_bp > references_length[ref_name] ||
-                   left_pos+right_bp-1 > references_length[ref_name]
+                   left_pos + right_bp - 1 > references_length[ref_name]
                     continue
                 end
 
                 # If reverse.
-                if flags_binary[5] == '1'
-                    seq = uppercase(string(reverse_complement(DNASequence(string(sequence(references[ref_name])[right_pos-right_bp+1:right_pos+left_bp])))))
+                seq::String = ""
+                if flags_binary[5] == 1
+                    seq = uppercase(string(reverse_complement(DNASequence(string(references_seq[ref_name][right_pos-right_bp+1:right_pos+left_bp])))))
                 else
-                    seq = uppercase(string(sequence(references[ref_name])[left_pos-left_bp:left_pos+right_bp-1]))
+                    seq = uppercase(string(references_seq[ref_name][left_pos-left_bp:left_pos+right_bp-1]))
                 end
 
                 increment_nucl_count!(nucl_count, seq, left_bp, right_bp, total_nucl_count)
@@ -186,6 +198,8 @@ function main()
         end
 
         close(bam_reader)
+    else
+        throw(error("Neither .fastq.gz file nor .bam was selected as an input."))
     end
 
     if output_format == "transfac"
@@ -194,7 +208,8 @@ function main()
         else
             println("P0\tA\tC\tG\tT")
         end
-        for pos in [1:length(nucl_count["A"]);]
+        for pos::Int64 in [1:length(nucl_count["A"]);]
+            corrected_pos::Int64 = 0
             if pos - left_bp > 0
                corrected_pos = pos-left_bp
             else
@@ -208,7 +223,8 @@ function main()
         end
     else
         println("nucl,pos,freq,avg_freq")
-        for nucl in sort(collect(keys(nucl_count)))
+        for nucl::String in sort(collect(keys(nucl_count)))
+            nucl_visual::String = ""
             if use_rna && nucl == "T"
                 nucl_visual = "U"
             else
@@ -216,7 +232,8 @@ function main()
             end
 
             # Calculates nucleotide frequency in reads.
-            for pos in [1:length(nucl_count[nucl]);]
+            for pos::Int64 in [1:length(nucl_count[nucl]);]
+                corrected_pos::Int64 = 0
                 if pos - left_bp > 0
                    corrected_pos = pos-left_bp
                 else
