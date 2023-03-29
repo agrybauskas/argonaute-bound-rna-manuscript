@@ -1,3 +1,7 @@
+argonaute-bound-rna-manuscript (0.1.1)
+
+  * Fixed the speed issues of fragmentation-bias.jl.
+
 argonaute-bound-rna-manuscript (0.1.0)
 
   * Initial release.
