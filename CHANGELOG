@@ -1,3 +1,6 @@
+argonaute-bound-rna-manuscript (0.1.2)
+  * Fixed the regex call that splits CSV and TSV format file.
+
 argonaute-bound-rna-manuscript (0.1.1)
 
   * Fixed the speed issues of fragmentation-bias.jl.
