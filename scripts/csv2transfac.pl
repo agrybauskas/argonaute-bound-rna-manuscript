@@ -46,7 +46,7 @@ while( <> ) {
         next;
     }
 
-    my ( $nucl, $pos, $freq ) = split /[,|\\t]/, $_;
+    my ( $nucl, $pos, $freq ) = split /[,\t]/, $_;
 
     $nucl =~ s/\s//g;
     $pos =~ s/\s//g;
