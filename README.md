@@ -1,4 +1,4 @@
-# Scripts related to Argonaute-bound RNA manuscript
+# Argonaute-bound RNA analysis scripts
 
 ## Prerequisites
 
